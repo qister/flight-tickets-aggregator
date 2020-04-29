@@ -10,23 +10,27 @@ const formSearch = document.querySelector('.form-search'),
 
 
 const citiesApi = 'database/cities.json',
-    citiesApiFull = 'http://api.travelpayouts.com/data/ru/cities.json'
+    citiesApiFull = 'https://api.travelpayouts.com/data/ru/cities.json'
     myProxy = 'https://cors-anywhere.herokuapp.com/',
     API_KEY = 'adaf6ec8a9a81280f60cff61273b90c6',
-    calendar = 'http://min-prices.aviasales.ru/calendar_preload',
+    calendar = 'https://min-prices.aviasales.ru/calendar_preload',
     MAX_COUNT = 10;
 
 let city = [];
 
 //skyscanner
 
-let startCityId = 1;
-let startCityName = [1];
-let endCityId = 2;
-let endCityName = [2];
+let cityFromId;
+let cityFromName = [];
+let cityFromNameRu = [];
+let cityToId;
+let cityToName = [];
+let cityToNameRu = [];
 let minPrice;
 let skyFetchDate;
 let dateSkyFrom;
+let cheapestCarrierName;
+let direct;
 
 
 //
@@ -235,9 +239,8 @@ const renderCheap = (data, date) => {
 //skyScanner
 
 const getSkyCityIdByName = async (query) => {
-	let id;
-	let city;
-	let result = []
+    
+    let result = [];
 
 	await fetch(`${myProxy}https://skyscanner-skyscanner-flight-search-v1.p.rapidapi.com/apiservices/autosuggest/v1.0/UK/GBP/en-GB/?query=${query}`, {
 	"method": "GET",
@@ -250,10 +253,7 @@ const getSkyCityIdByName = async (query) => {
 		return response.json();
 	})
 	.then(function(data){
-        id = data.Places[0].CityId;
-        city = data.Places[0].PlaceName;
-		result.push(id);
-		result.push(city);
+        result.push(data.Places[0].CityId);
 	})
 	.catch(err => {
 		console.log(err);
@@ -264,7 +264,6 @@ const getSkyCityIdByName = async (query) => {
 
 const getSkyMinPrice = async (fromId, toId) => {
 	
-	let temporary;
 
 	await fetch(`${myProxy}https://skyscanner-skyscanner-flight-search-v1.p.rapidapi.com/apiservices/browsequotes/v1.0/US/RUB/en-US/${fromId}/${toId}/${skyFetchDate}?`, {
 	"method": "GET",
@@ -277,11 +276,18 @@ const getSkyMinPrice = async (fromId, toId) => {
 		return response.json();
 	})
 	.then(function(data){
-		temporary = sortPrices(data);
-		minPrice = temporary[0].MinPrice;
-        dateSkyFrom = temporary[0].OutboundLeg.DepartureDate;
-        console.log(dateSkyFrom);
         
+        const temporary = sortPrices(data);
+		minPrice = temporary[0].MinPrice;
+        dateSkyFrom = temporary[0].OutboundLeg.DepartureDate;  
+
+        //direct or not
+        direct = temporary[0].Direct;
+        
+        //carrier name search
+        const cheapestCarrierId = temporary[0].OutboundLeg.CarrierIds[0];
+        const cheapestCarrier = data.Carriers.find(item => item.CarrierId === cheapestCarrierId);
+        cheapestCarrierName = cheapestCarrier.Name;
         
 	})
 	.catch(err => {
@@ -316,36 +322,32 @@ const renderSkyCheapDay = () => {
     
 };
 
-const getSkyDate = (data) => {
-	let date = data.Quotes.DeparturDate;	
-}
-
 const createSkyCard = () => {
 	const ticket = document.createElement('article');
     ticket.classList.add('ticket');
 
     let deep = '';
 
-    if (1) {
+    if (minPrice !== undefined) {
         deep = `
-        <h3 class="agent">Не удалось узнать провайдера</h3>
+        <h3 class="agent">${cheapestCarrierName}</h3>
         <div class="ticket__wrapper">
             <div class="left-side">
-                <a href="${getSkyLink(startCityId, endCityId, dateSkyFrom)}" target="blank" class="button button__buy">Купить
+                <a href="${getSkyLink(cityFromId, cityToId, dateSkyFrom)}" target="blank" class="button button__buy">Купить
                     за ${minPrice}₽</a>
             </div>
             <div class="right-side">
                 <div class="block-left">
                     <div class="city__from">Вылет из города
-                        <span class="city__name">${startCityName[0]}</span>
+                        <span class="city__name">${cityFromNameRu[0]}</span>
                     </div>
                     <div class="date">${getDate(dateSkyFrom)}</div>
                 </div>
 
                 <div class="block-right">
-                    <div class="changes">Неизвестно сколько пересадок</div>
+                    <div class="changes">${direct === true ? 'Без пересадок': 'С пересадками, количество неизвестно'}</div>
                     <div class="city__to">Город назначения:
-                        <span class="city__name">${endCityName[0]}</span>
+                        <span class="city__name">${cityToNameRu[0]}</span>
                     </div>
                 </div>
             </div>
@@ -361,28 +363,29 @@ const createSkyCard = () => {
     return ticket;
 }
 
-const selectSkyCity = (event, input, list, writeTo) => {
+const selectSkyCity = (event, input, list, writeToEnName, writeToRuName) => {
 
     const target = event.target;
-    let skyCityFrom;
 
     if (target.tagName.toLowerCase() === 'li') {
         input.value = target.textContent;
 
-        skyCityFrom = city.find((item) =>{
+
+        const skyCity = city.find((item) =>{
             return input.value === item.name;
         })
         list.textContent = '';
 
-        writeTo[0] = skyCityFrom.name_translations.en;    
+        writeToRuName[0] = skyCity.name;
+        writeToEnName[0] = skyCity.name_translations.en;    
     }
 };
 
 const getSkyLink = (fromId, toId, dateFrom) => {
 	//   mosc/jfk/200901/
     let link = 'https://www.skyscanner.ru/transport/flights/'
-	link += startCityId.slice(0, -4) + '/';
-	link += endCityId.slice(0, -4) + '/';
+	link += cityFromId.slice(0, -4) + '/';
+	link += cityToId.slice(0, -4) + '/';
 	const date = new Date(dateSkyFrom);
 	const year = date.getFullYear();
 	const day = date.getDay();
@@ -451,11 +454,11 @@ formSearch.addEventListener('submit', (event) => {
 
 //skyscanner
 dropdownCitiesFrom.addEventListener('click', (event) => {
-    selectSkyCity(event, inputCitiesFrom, dropdownCitiesFrom, startCityName);
+    selectSkyCity(event, inputCitiesFrom, dropdownCitiesFrom, cityFromName, cityFromNameRu);
 });
 
 dropdownCitiesTo.addEventListener('click', (event) => {
-    selectSkyCity(event, inputCitiesTo, dropdownCitiesTo, endCityName);
+    selectSkyCity(event, inputCitiesTo, dropdownCitiesTo, cityToName, cityToNameRu);
 });
 
 // вызовы функций
@@ -477,15 +480,15 @@ getData(myProxy + citiesApiFull, (data) => {
 
 const common = () => {
 
-    getSkyCityIdByName(startCityName)
+    getSkyCityIdByName(cityFromName)
         .then(result => {
-            startCityId = result[0];
+            cityFromId = result[0];
         })
-        .then(() => getSkyCityIdByName(endCityName))
+        .then(() => getSkyCityIdByName(cityToName))
         .then(result => {
-            endCityId = result[0];
+            cityToId = result[0];
         })
-        .then(() => getSkyMinPrice(startCityId, endCityId))
+        .then(() => getSkyMinPrice(cityFromId, cityToId))
         .then(() => renderSkyCheapDay())
     };
     
