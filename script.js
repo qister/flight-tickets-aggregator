@@ -149,6 +149,7 @@ const getLinkAviasales = (data) => {
 };
 
 const createCard = (data) => {
+  
     const ticket = document.createElement('article');
     ticket.classList.add('ticket');
 
@@ -234,7 +235,7 @@ const renderCheap = (data, date) => {
     // renderCheapYear(cheapTicketYear);
 
 
-}
+};
 
 //skyScanner
 
@@ -260,7 +261,7 @@ const getSkyCityIdByName = async (query) => {
 	});
 
 	return result;
-}
+};
 
 const getSkyMinPrice = async (fromId, toId) => {
 	
@@ -309,7 +310,7 @@ const sortPrices = (data) => {
 	  });
 	return prices;
 
-}
+};
 
 const renderSkyCheapDay = () => {
 
@@ -361,7 +362,7 @@ const createSkyCard = () => {
     ticket.insertAdjacentHTML('afterbegin', deep)
 
     return ticket;
-}
+};
 
 const selectSkyCity = (event, input, list, writeToEnName, writeToRuName) => {
 
@@ -397,7 +398,22 @@ const getSkyLink = (fromId, toId, dateFrom) => {
 
 	return link;
 	
-}
+};
+
+const common = () => {
+
+    getSkyCityIdByName(cityFromName)
+        .then(result => {
+            cityFromId = result[0];
+        })
+        .then(() => getSkyCityIdByName(cityToName))
+        .then(result => {
+            cityToId = result[0];
+        })
+        .then(() => getSkyMinPrice(cityFromId, cityToId))
+        .then(() => renderSkyCheapDay())
+};
+
 //Обработчики
 
 //aviasales
@@ -478,17 +494,5 @@ getData(myProxy + citiesApiFull, (data) => {
           });
     });
 
-const common = () => {
 
-    getSkyCityIdByName(cityFromName)
-        .then(result => {
-            cityFromId = result[0];
-        })
-        .then(() => getSkyCityIdByName(cityToName))
-        .then(result => {
-            cityToId = result[0];
-        })
-        .then(() => getSkyMinPrice(cityFromId, cityToId))
-        .then(() => renderSkyCheapDay())
-    };
     
